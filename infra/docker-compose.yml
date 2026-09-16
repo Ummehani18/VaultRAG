@@ -1,0 +1,19 @@
+services:
+
+  postgres:
+    image: pgvector/pgvector:pg17
+    container_name: vaultrag-postgres
+
+    environment:
+      POSTGRES_DB: vaultrag
+      POSTGRES_USER: vaultrag
+      POSTGRES_PASSWORD: vaultrag_dev_password
+
+    ports:
+      - "5434:5432"
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
