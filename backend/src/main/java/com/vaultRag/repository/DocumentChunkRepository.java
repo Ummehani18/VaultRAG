@@ -41,13 +41,84 @@ public interface DocumentChunkRepository
             @Param("chunkId") UUID chunkId
     );
 
+    /*
+     * Search across all documents owned by the authenticated user.
+     */
+    @Query(value = """
+            SELECT
+                dc.id AS chunkId,
+                dc.document_id AS documentId,
+                d.name AS documentName,
+                dc.chunk_index AS chunkIndex,
+                dc.page_number AS pageNumber,
+                dc.content AS content,
+                (dc.embedding <=> CAST(:embedding AS vector)) AS distance
+            FROM document_chunks dc
+            JOIN documents d
+                ON d.id = dc.document_id
+            WHERE dc.embedding IS NOT NULL
+              AND d.uploaded_by = :userId
+              AND d.status = 'READY'
+              AND (dc.embedding <=> CAST(:embedding AS vector)) <= :maxDistance
+            ORDER BY dc.embedding <=> CAST(:embedding AS vector)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<SimilarChunkProjection> findSimilarChunks(
+            @Param("embedding") String embedding,
+            @Param("maxDistance") double maxDistance,
+            @Param("limit") int limit,
+            @Param("userId") UUID userId
+    );
+
+    /*
+     * Search only within one selected document.
+     *
+     * IMPORTANT:
+     * The userId restriction remains here.
+     * This prevents a user from retrieving another
+     * user's document simply by supplying its UUID.
+     */
+    @Query(value = """
+            SELECT
+                dc.id AS chunkId,
+                dc.document_id AS documentId,
+                d.name AS documentName,
+                dc.chunk_index AS chunkIndex,
+                dc.page_number AS pageNumber,
+                dc.content AS content,
+                (dc.embedding <=> CAST(:embedding AS vector)) AS distance
+            FROM document_chunks dc
+            JOIN documents d
+                ON d.id = dc.document_id
+            WHERE dc.embedding IS NOT NULL
+              AND d.uploaded_by = :userId
+              AND d.id = :documentId
+              AND d.status = 'READY'
+              AND (dc.embedding <=> CAST(:embedding AS vector)) <= :maxDistance
+            ORDER BY dc.embedding <=> CAST(:embedding AS vector)
+            LIMIT :limit
+            """, nativeQuery = true)
+    List<SimilarChunkProjection> findSimilarChunksByDocument(
+            @Param("embedding") String embedding,
+            @Param("maxDistance") double maxDistance,
+            @Param("limit") int limit,
+            @Param("userId") UUID userId,
+            @Param("documentId") UUID documentId
+    );
+
+
+    /*
+     * TEMPORARY DIAGNOSTIC SEARCH.
+     * Returns the nearest chunks without applying maxDistance.
+     * Keeps user ownership and READY-document restrictions.
+     */
     @Query(value = """
         SELECT
-            dc.id AS chunk_id,
-            dc.document_id AS document_id,
-            d.name AS document_name,
-            dc.chunk_index AS chunk_index,
-            dc.page_number AS page_number,
+            dc.id AS chunkId,
+            dc.document_id AS documentId,
+            d.name AS documentName,
+            dc.chunk_index AS chunkIndex,
+            dc.page_number AS pageNumber,
             dc.content AS content,
             (dc.embedding <=> CAST(:embedding AS vector)) AS distance
         FROM document_chunks dc
@@ -55,14 +126,44 @@ public interface DocumentChunkRepository
             ON d.id = dc.document_id
         WHERE dc.embedding IS NOT NULL
           AND d.uploaded_by = :userId
-          AND (dc.embedding <=> CAST(:embedding AS vector)) <= :maxDistance
+          AND d.status = 'READY'
         ORDER BY dc.embedding <=> CAST(:embedding AS vector)
         LIMIT :limit
         """, nativeQuery = true)
-    List<SimilarChunkProjection> findSimilarChunks(
+    List<SimilarChunkProjection> findNearestChunksForDiagnostics(
             @Param("embedding") String embedding,
-            @Param("maxDistance") double maxDistance,
             @Param("limit") int limit,
             @Param("userId") UUID userId
     );
+
+    /*
+     * TEMPORARY DIAGNOSTIC SEARCH within one selected document.
+     * Still enforces ownership and READY-document restrictions.
+     */
+    @Query(value = """
+        SELECT
+            dc.id AS chunkId,
+            dc.document_id AS documentId,
+            d.name AS documentName,
+            dc.chunk_index AS chunkIndex,
+            dc.page_number AS pageNumber,
+            dc.content AS content,
+            (dc.embedding <=> CAST(:embedding AS vector)) AS distance
+        FROM document_chunks dc
+        JOIN documents d
+            ON d.id = dc.document_id
+        WHERE dc.embedding IS NOT NULL
+          AND d.uploaded_by = :userId
+          AND d.id = :documentId
+          AND d.status = 'READY'
+        ORDER BY dc.embedding <=> CAST(:embedding AS vector)
+        LIMIT :limit
+        """, nativeQuery = true)
+    List<SimilarChunkProjection> findNearestChunksForDiagnosticsByDocument(
+            @Param("embedding") String embedding,
+            @Param("limit") int limit,
+            @Param("userId") UUID userId,
+            @Param("documentId") UUID documentId
+    );
+
 }

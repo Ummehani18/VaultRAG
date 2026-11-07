@@ -2,12 +2,14 @@ package com.vaultRag.backend.controller;
 
 import com.vaultRag.backend.dto.AuditLogResponse;
 import com.vaultRag.backend.entity.AuditLog;
+import com.vaultRag.backend.entity.User;
 import com.vaultRag.backend.repository.AuditLogRepository;
+import com.vaultRag.backend.service.UserService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,17 +23,21 @@ import java.util.Map;
 public class AuditLogController {
 
     private final AuditLogRepository auditLogRepository;
+    private final UserService userService;
 
     public AuditLogController(
-            AuditLogRepository auditLogRepository) {
+            AuditLogRepository auditLogRepository,
+            UserService userService) {
+
         this.auditLogRepository = auditLogRepository;
+        this.userService = userService;
     }
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
     public Map<String, Object> getAuditLogs(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            Authentication authentication) {
 
         if (page < 0) {
             throw new IllegalArgumentException(
@@ -54,8 +60,26 @@ public class AuditLogController {
                 )
         );
 
-        Page<AuditLog> auditLogPage =
-                auditLogRepository.findAll(pageable);
+        User currentUser =
+                userService.findByUsername(authentication.getName());
+
+        Page<AuditLog> auditLogPage;
+
+        if ("ADMIN".equalsIgnoreCase(currentUser.getRole())) {
+
+            // Admin can see audit logs from every user.
+            auditLogPage =
+                    auditLogRepository.findAll(pageable);
+
+        } else {
+
+            // Regular users can only see their own audit logs.
+            auditLogPage =
+                    auditLogRepository.findByUserId(
+                            currentUser.getId(),
+                            pageable
+                    );
+        }
 
         List<AuditLogResponse> content =
                 auditLogPage.getContent()

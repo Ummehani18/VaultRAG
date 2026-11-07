@@ -19,14 +19,15 @@ public class DocumentExtractionService {
 
     private final Tika tika = new Tika();
 
+    /**
+     * Extracts the complete document text.
+     *
+     * This method is retained for general document extraction.
+     */
     public String extractText(Path filePath)
             throws IOException, TikaException {
 
-        if (!Files.exists(filePath)) {
-            throw new IllegalArgumentException(
-                    "Document file not found"
-            );
-        }
+        validateFile(filePath);
 
         try (InputStream inputStream =
                      Files.newInputStream(filePath)) {
@@ -35,16 +36,34 @@ public class DocumentExtractionService {
         }
     }
 
+    /**
+     * Extracts PDF text page-by-page.
+     *
+     * IMPORTANT:
+     *
+     * pageNumber is the physical PDF page number, starting from 1.
+     *
+     * This does NOT depend on whether the PDF itself contains
+     * a printed page number.
+     *
+     * Example:
+     *
+     * PDF page 1 with no printed number
+     *      -> pageNumber = 1
+     *
+     * PDF page 7 with no printed number
+     *      -> pageNumber = 7
+     *
+     * This gives VaultRAG a reliable citation location even
+     * when the original document has no visible page numbering.
+     */
     public List<ExtractedPage> extractPages(Path filePath)
             throws IOException {
 
-        if (!Files.exists(filePath)) {
-            throw new IllegalArgumentException(
-                    "Document file not found"
-            );
-        }
+        validateFile(filePath);
 
-        List<ExtractedPage> pages = new ArrayList<>();
+        List<ExtractedPage> pages =
+                new ArrayList<>();
 
         try (PDDocument document =
                      Loader.loadPDF(filePath.toFile())) {
@@ -52,24 +71,39 @@ public class DocumentExtractionService {
             PDFTextStripper stripper =
                     new PDFTextStripper();
 
-            int totalPages = document.getNumberOfPages();
+            int totalPages =
+                    document.getNumberOfPages();
 
-            for (int pageNumber = 1;
-                 pageNumber <= totalPages;
-                 pageNumber++) {
+            for (
+                    int physicalPageNumber = 1;
+                    physicalPageNumber <= totalPages;
+                    physicalPageNumber++
+            ) {
 
-                stripper.setStartPage(pageNumber);
-                stripper.setEndPage(pageNumber);
+                stripper.setStartPage(
+                        physicalPageNumber
+                );
+
+                stripper.setEndPage(
+                        physicalPageNumber
+                );
 
                 String text =
                         stripper.getText(document)
                                 .replaceAll("\\s+", " ")
                                 .trim();
 
+                /*
+                 * Keep the physical PDF page number.
+                 *
+                 * We intentionally do not try to extract
+                 * a printed page number from the text.
+                 */
                 if (!text.isBlank()) {
+
                     pages.add(
                             new ExtractedPage(
-                                    pageNumber,
+                                    physicalPageNumber,
                                     text
                             )
                     );
@@ -78,5 +112,26 @@ public class DocumentExtractionService {
         }
 
         return pages;
+    }
+
+    private void validateFile(Path filePath) {
+
+        if (filePath == null) {
+            throw new IllegalArgumentException(
+                    "Document file path cannot be null"
+            );
+        }
+
+        if (!Files.exists(filePath)) {
+            throw new IllegalArgumentException(
+                    "Document file not found"
+            );
+        }
+
+        if (!Files.isRegularFile(filePath)) {
+            throw new IllegalArgumentException(
+                    "Document path is not a file"
+            );
+        }
     }
 }

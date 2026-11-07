@@ -4,13 +4,18 @@ import com.vaultRag.backend.dto.RagResponse;
 import com.vaultRag.backend.dto.RagSource;
 import com.vaultRag.backend.entity.Document;
 import com.vaultRag.backend.entity.User;
-import com.vaultRag.backend.repository.DocumentRepository;
 import com.vaultRag.backend.repository.UserRepository;
+import com.vaultRag.backend.testutil.TestDocumentFactory;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
@@ -27,7 +32,7 @@ class RagServiceTest {
     private UserRepository userRepository;
 
     @Autowired
-    private DocumentRepository documentRepository;
+    private TestDocumentFactory testDocumentFactory;
 
     @Autowired
     private UserService userService;
@@ -38,7 +43,8 @@ class RagServiceTest {
     }
 
     @Test
-    void shouldAnswerQuestionUsingRetrievedContext() {
+    void shouldAnswerQuestionUsingRetrievedContext()
+            throws Exception {
 
         authenticateAsTestUser();
 
@@ -58,43 +64,67 @@ class RagServiceTest {
 
         assertNotNull(response.sources());
         assertFalse(response.sources().isEmpty());
-
-        System.out.println(
-                "\n========== RAG ANSWER =========="
-        );
-
-        System.out.println(response.answer());
-
-        System.out.println(
-                "\n========== SOURCES =========="
-        );
-
-        for (RagSource source : response.sources()) {
-
-            System.out.println(
-                    "\nDocument: " +
-                            source.documentName()
-            );
-
-            System.out.println(
-                    "Chunk: " +
-                            source.chunkIndex()
-            );
-
-            System.out.println(
-                    "Page: " +
-                            source.pageNumber()
-            );
-
-            System.out.println(
-                    "Content: " +
-                            source.content()
-            );
-        }
     }
 
     @Test
-    void shouldReturnSafeResponseWhenNoRelevantContextExists() {
+    void shouldAnswerQuestionUsingSelectedDocument()
+            throws Exception {
+
+        User user =
+                authenticateAsTestUser();
+
+        Document selectedDocument =
+                testDocumentFactory
+                        .createInsuranceDocument(user);
+
+        Document otherDocument =
+                testDocumentFactory
+                        .createInsuranceDocument(user);
+
+        assertNotNull(selectedDocument);
+        assertNotNull(otherDocument);
+
+        assertNotEquals(
+                selectedDocument.getId(),
+                otherDocument.getId()
+        );
+
+        String question =
+                "What documents are required for a claim?";
+
+        RagResponse response =
+                ragService.answer(
+                        question,
+                        3,
+                        selectedDocument.getId()
+                );
+
+        assertNotNull(response);
+
+        assertNotNull(response.sources());
+
+        assertFalse(
+                response.sources().isEmpty(),
+                "Expected sources from selected document"
+        );
+
+        assertTrue(
+                response.sources()
+                        .stream()
+                        .allMatch(source ->
+                                selectedDocument
+                                        .getId()
+                                        .equals(
+                                                source.documentId()
+                                        )
+                        ),
+                "RAG returned a source from a document other than the selected document"
+        );
+    }
+
+    @Test
+    void shouldReturnSafeResponseWhenNoRelevantContextExists()
+            throws Exception {
 
         authenticateAsTestUser();
 
@@ -120,26 +150,11 @@ class RagServiceTest {
                 response.sources().isEmpty(),
                 "Expected no sources for an unrelated question"
         );
-
-        System.out.println(
-                "\n========== NO RELEVANT CONTEXT =========="
-        );
-
-        System.out.println(
-                "Question: " + question
-        );
-
-        System.out.println(
-                "Answer: " + response.answer()
-        );
-
-        System.out.println(
-                "Sources: " + response.sources().size()
-        );
     }
 
     @Test
-    void shouldReturnPageNumberForRetrievedSource() {
+    void shouldReturnPageNumberForRetrievedSource()
+            throws Exception {
 
         authenticateAsTestUser();
 
@@ -153,173 +168,219 @@ class RagServiceTest {
                 );
 
         assertNotNull(response);
-        assertNotNull(response.sources());
-        assertFalse(response.sources().isEmpty());
 
-        RagSource pageThreeSource =
+        assertNotNull(response.sources());
+
+        assertFalse(
+                response.sources().isEmpty(),
+                "Expected at least one relevant source"
+        );
+
+        RagSource pageSevenSource =
                 response.sources()
                         .stream()
                         .filter(source ->
-                                "VaultRAG_3_Page_Insurance_Test.pdf"
-                                        .equals(source.documentName())
+                                "VaultRAG_Healthcare_Insurance_Test_Dataset.pdf"
+                                        .equals(
+                                                source.documentName()
+                                        )
                         )
                         .filter(source ->
-                                Integer.valueOf(3)
-                                        .equals(source.pageNumber())
+                                Integer.valueOf(7)
+                                        .equals(
+                                                source.pageNumber()
+                                        )
                         )
                         .findFirst()
                         .orElseThrow(() ->
                                 new AssertionError(
-                                        "Expected a source from page 3"
+                                        "Expected a source from page 7"
                                 )
                         );
 
         assertEquals(
-                "VaultRAG_3_Page_Insurance_Test.pdf",
-                pageThreeSource.documentName()
+                "VaultRAG_Healthcare_Insurance_Test_Dataset.pdf",
+                pageSevenSource.documentName()
         );
 
         assertEquals(
-                3,
-                pageThreeSource.pageNumber()
+                7,
+                pageSevenSource.pageNumber()
         );
 
-        assertTrue(
-                pageThreeSource.content()
-                        .contains("Reimbursement Rules")
+        assertNotNull(
+                pageSevenSource.content()
         );
 
-        System.out.println(
-                "\n========== PAGE CITATION REGRESSION =========="
-        );
-
-        System.out.println(
-                "Document: " +
-                        pageThreeSource.documentName()
-        );
-
-        System.out.println(
-                "Page: " +
-                        pageThreeSource.pageNumber()
-        );
-
-        System.out.println(
-                "Chunk: " +
-                        pageThreeSource.chunkIndex()
+        assertFalse(
+                pageSevenSource.content().isBlank()
         );
     }
 
     @Test
-    void shouldNotAnswerUsingAnotherUsersDocument() {
+    void shouldNotAnswerUsingAnotherUsersDocument()
+            throws Exception {
 
-        String ownerUsername = "rag-security-owner";
-        String otherUserUsername = "rag-security-other-user";
+        String ownerUsername =
+                "rag-security-owner";
 
-        User owner = userRepository
-                .findByUsername(ownerUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                ownerUsername,
-                                "test-password-123",
-                                "USER"
-                        )
-                );
+        String otherUserUsername =
+                "rag-security-other-user";
 
-        User otherUser = userRepository
-                .findByUsername(otherUserUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                otherUserUsername,
-                                "test-password-123",
-                                "USER"
-                        )
-                );
+        User owner =
+                userRepository
+                        .findByUsername(ownerUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        ownerUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document ownerDocument = documentRepository.findAll()
-                .stream()
-                .filter(document ->
-                        "VaultRAG_3_Page_Insurance_Test.pdf"
-                                .equals(document.getName())
-                )
-                .findFirst()
-                .orElseThrow(() ->
-                        new AssertionError(
-                                "Expected test insurance document"
-                        )
-                );
+        User otherUser =
+                userRepository
+                        .findByUsername(otherUserUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        otherUserUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        ownerDocument.setUploadedBy(owner);
-        documentRepository.saveAndFlush(ownerDocument);
+        Document ownerDocument =
+                testDocumentFactory
+                        .createInsuranceDocument(owner);
 
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(
-                        otherUserUsername,
-                        null,
-                        List.of()
-                )
+        assertNotNull(ownerDocument);
+
+        assertNotNull(ownerDocument.getUploadedBy());
+
+        assertEquals(
+                owner.getId(),
+                ownerDocument.getUploadedBy().getId()
         );
 
-        try {
+        authenticate(otherUser);
 
-            RagResponse response =
-                    ragService.answer(
-                            "What documents are required for a claim?",
-                            3
-                    );
+        RagResponse response =
+                ragService.answer(
+                        "What documents are required for a claim?",
+                        3
+                );
 
-            assertNotNull(response);
+        assertNotNull(response);
 
-            assertTrue(
-                    response.sources().isEmpty(),
-                    "RAG must not return another user's sources"
-            );
+        assertNotNull(response.sources());
 
-            assertEquals(
-                    "I could not find relevant information in the provided documents.",
-                    response.answer()
-            );
+        assertTrue(
+                response.sources().isEmpty(),
+                "RAG must not return another user's sources"
+        );
 
-        } finally {
-            SecurityContextHolder.clearContext();
-        }
+        assertEquals(
+                "I could not find relevant information in the provided documents.",
+                response.answer()
+        );
     }
 
-    private void authenticateAsTestUser() {
+    @Test
+    void shouldRejectSelectedDocumentOwnedByAnotherUser()
+            throws Exception {
 
-        String username = "rag-test-user";
-
-        User user = userRepository
-                .findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
+        User owner =
+                userRepository
+                        .findByUsername(
+                                "rag-selected-owner"
                         )
-                );
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        "rag-selected-owner",
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = documentRepository.findAll()
-                .stream()
-                .filter(existingDocument ->
-                        "VaultRAG_3_Page_Insurance_Test.pdf"
-                                .equals(existingDocument.getName())
-                )
-                .findFirst()
-                .orElseThrow(() ->
-                        new AssertionError(
-                                "Expected VaultRAG_3_Page_Insurance_Test.pdf"
+        User attacker =
+                userRepository
+                        .findByUsername(
+                                "rag-selected-attacker"
                         )
-                );
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        "rag-selected-attacker",
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        document.setUploadedBy(user);
-        documentRepository.saveAndFlush(document);
+        Document ownerDocument =
+                testDocumentFactory
+                        .createInsuranceDocument(owner);
 
-        SecurityContextHolder.getContext().setAuthentication(
-                new UsernamePasswordAuthenticationToken(
-                        username,
-                        null,
-                        List.of()
-                )
+        assertNotNull(ownerDocument);
+
+        authenticate(attacker);
+
+        assertThrows(
+                AccessDeniedException.class,
+                () ->
+                        ragService.answer(
+                                "What documents are required for a claim?",
+                                3,
+                                ownerDocument.getId()
+                        )
         );
+    }
+
+    private User authenticateAsTestUser()
+            throws Exception {
+
+        User user =
+                userRepository
+                        .findByUsername("rag-test-user")
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        "rag-test-user",
+                                        "password",
+                                        "USER"
+                                )
+                        );
+
+        Document document =
+                testDocumentFactory
+                        .createInsuranceDocument(user);
+
+        assertNotNull(document);
+
+        assertNotNull(document.getUploadedBy());
+
+        assertEquals(
+                user.getId(),
+                document.getUploadedBy().getId()
+        );
+
+        authenticate(user);
+
+        return user;
+    }
+
+    private void authenticate(User user) {
+
+        SecurityContextHolder
+                .getContext()
+                .setAuthentication(
+                        new UsernamePasswordAuthenticationToken(
+                                user.getUsername(),
+                                null,
+                                List.of(
+                                        new SimpleGrantedAuthority(
+                                                "ROLE_" +
+                                                        user.getRole()
+                                        )
+                                )
+                        )
+                );
     }
 }

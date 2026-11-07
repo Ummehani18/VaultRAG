@@ -1,40 +1,36 @@
 package com.vaultRag.backend.controller;
 
+import com.vaultRag.backend.entity.AuditLog;
 import com.vaultRag.backend.entity.Document;
 import com.vaultRag.backend.entity.User;
+import com.vaultRag.backend.repository.AuditLogRepository;
 import com.vaultRag.backend.repository.DocumentRepository;
 import com.vaultRag.backend.repository.UserRepository;
 import com.vaultRag.backend.service.JwtService;
 import com.vaultRag.backend.service.UserService;
+import com.vaultRag.backend.testutil.TestDocumentFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.junit.jupiter.api.Test;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.http.HttpHeaders;
-import org.springframework.test.web.servlet.client.RestTestClient;
-import com.vaultRag.backend.entity.AuditLog;
-import com.vaultRag.backend.repository.AuditLogRepository;
-
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.client.RestTestClient;
 import org.springframework.util.LinkedMultiValueMap;
-
-
-import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.HttpEntity;
-import org.springframework.util.LinkedMultiValueMap;
-
-import org.springframework.http.MediaType;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.core.io.ByteArrayResource;
 
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(
+        webEnvironment =
+                SpringBootTest.WebEnvironment.RANDOM_PORT
+)
 class DocumentControllerTest {
 
     @LocalServerPort
@@ -55,45 +51,65 @@ class DocumentControllerTest {
     @Autowired
     private JwtService jwtService;
 
+    @Autowired
+    private TestDocumentFactory testDocumentFactory;
+
     private RestTestClient client;
 
     private RestTestClient client() {
+
         if (client == null) {
-            client = RestTestClient.bindToServer()
-                    .baseUrl("http://localhost:" + port)
-                    .build();
+
+            client =
+                    RestTestClient
+                            .bindToServer()
+                            .baseUrl(
+                                    "http://localhost:" +
+                                            port
+                            )
+                            .build();
         }
 
         return client;
     }
 
     @Test
-    void ownerCanAccessOwnDocument() {
+    void ownerCanAccessOwnDocument()
+            throws Exception {
 
-        String username = "http-document-owner";
+        String username =
+                "http-document-owner";
 
-        User owner = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User owner =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = getTestDocument();
+        Document document =
+                getTestDocument(owner);
 
-        document.setUploadedBy(owner);
-        documentRepository.saveAndFlush(document);
-
-        String token = jwtService.generateToken(
-                username,
-                owner.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        owner.getRole()
+                );
 
         client()
                 .get()
-                .uri("/api/documents/{id}", document.getId())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .uri(
+                        "/api/documents/{id}",
+                        document.getId()
+                )
+                .header(
+                        HttpHeaders.AUTHORIZATION,
+                        "Bearer " + token
+                )
                 .exchange()
                 .expectStatus()
                 .isOk()
@@ -101,137 +117,177 @@ class DocumentControllerTest {
                 .value(body ->
                         assertTrue(
                                 body.contains(
-                                        "VaultRAG_3_Page_Insurance_Test.pdf"
+                                        "VaultRAG_Healthcare_Insurance_Test_Dataset.pdf"
                                 )
                         )
                 );
     }
 
     @Test
-    void anotherUserCannotAccessDocument() {
+    void anotherUserCannotAccessDocument()
+            throws Exception {
 
-        String ownerUsername = "http-access-owner";
-        String otherUsername = "http-access-other";
+        String ownerUsername =
+                "http-access-owner";
 
-        User owner = userRepository.findByUsername(ownerUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                ownerUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        String otherUsername =
+                "http-access-other";
 
-        User otherUser = userRepository.findByUsername(otherUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                otherUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User owner =
+                userRepository
+                        .findByUsername(ownerUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        ownerUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = getTestDocument();
+        User otherUser =
+                userRepository
+                        .findByUsername(otherUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        otherUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        document.setUploadedBy(owner);
-        documentRepository.saveAndFlush(document);
+        Document document =
+                getTestDocument(owner);
 
-        String token = jwtService.generateToken(
-                otherUsername,
-                otherUser.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        otherUsername,
+                        otherUser.getRole()
+                );
 
         client()
                 .get()
-                .uri("/api/documents/{id}", document.getId())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .uri(
+                        "/api/documents/{id}",
+                        document.getId()
+                )
+                .header(
+                        HttpHeaders.AUTHORIZATION,
+                        "Bearer " + token
+                )
                 .exchange()
                 .expectStatus()
                 .isForbidden();
     }
 
     @Test
-    void unauthenticatedUserCannotAccessDocument() {
+    void unauthenticatedUserCannotAccessDocument()
+            throws Exception {
 
-        Document document = getTestDocument();
+        User owner =
+                userRepository
+                        .findByUsername(
+                                "http-unauthenticated-owner"
+                        )
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        "http-unauthenticated-owner",
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
+
+        Document document =
+                getTestDocument(owner);
 
         client()
                 .get()
-                .uri("/api/documents/{id}", document.getId())
+                .uri(
+                        "/api/documents/{id}",
+                        document.getId()
+                )
                 .exchange()
                 .expectStatus()
-                .isForbidden();
+                .isUnauthorized();
     }
 
     @Test
     void nonexistentDocumentReturnsNotFound() {
 
-        String username = "http-not-found-user";
+        String username =
+                "http-not-found-user";
 
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User user =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        String token = jwtService.generateToken(
-                username,
-                user.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        user.getRole()
+                );
 
         client()
                 .get()
-                .uri("/api/documents/{id}", UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + token)
+                .uri(
+                        "/api/documents/{id}",
+                        UUID.randomUUID()
+                )
+                .header(
+                        HttpHeaders.AUTHORIZATION,
+                        "Bearer " + token
+                )
                 .exchange()
                 .expectStatus()
                 .isNotFound();
     }
 
-    private Document getTestDocument() {
-
-        return documentRepository.findAll().stream()
-                .filter(document ->
-                        "VaultRAG_3_Page_Insurance_Test.pdf"
-                                .equals(document.getName()))
-                .findFirst()
-                .orElseThrow(() ->
-                        new AssertionError(
-                                "Expected test insurance document"
-                        ));
-    }
-
     @Test
-    void userOnlySeesOwnDocuments() {
+    void userOnlySeesOwnDocuments()
+            throws Exception {
 
-        String userAUsername = "list-owner-user";
-        String userBUsername = "list-other-user";
+        String userAUsername =
+                "list-owner-user";
 
-        User userA = userRepository.findByUsername(userAUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                userAUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        String userBUsername =
+                "list-other-user";
 
-        User userB = userRepository.findByUsername(userBUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                userBUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User userA =
+                userRepository
+                        .findByUsername(userAUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        userAUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = getTestDocument();
+        User userB =
+                userRepository
+                        .findByUsername(userBUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        userBUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        document.setUploadedBy(userA);
-        documentRepository.saveAndFlush(document);
+        Document document =
+                getTestDocument(userA);
 
-        String token = jwtService.generateToken(
-                userBUsername,
-                userB.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        userBUsername,
+                        userB.getRole()
+                );
 
         client()
                 .get()
@@ -247,7 +303,7 @@ class DocumentControllerTest {
                 .value(body ->
                         assertTrue(
                                 !body.contains(
-                                        "VaultRAG_3_Page_Insurance_Test.pdf"
+                                        "VaultRAG_Healthcare_Insurance_Test_Dataset.pdf"
                                 ),
                                 "User B must not see User A's document"
                         )
@@ -255,31 +311,38 @@ class DocumentControllerTest {
     }
 
     @Test
-    void ownerAccessCreatesDocumentAccessedAuditLog() {
+    void ownerAccessCreatesDocumentAccessedAuditLog()
+            throws Exception {
 
-        String username = "http-audit-owner";
+        String username =
+                "http-audit-owner";
 
-        User owner = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User owner =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = getTestDocument();
+        Document document =
+                getTestDocument(owner);
 
-        document.setUploadedBy(owner);
-        documentRepository.saveAndFlush(document);
-
-        String token = jwtService.generateToken(
-                username,
-                owner.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        owner.getRole()
+                );
 
         client()
                 .get()
-                .uri("/api/documents/{id}", document.getId())
+                .uri(
+                        "/api/documents/{id}",
+                        document.getId()
+                )
                 .header(
                         HttpHeaders.AUTHORIZATION,
                         "Bearer " + token
@@ -288,14 +351,26 @@ class DocumentControllerTest {
                 .expectStatus()
                 .isOk();
 
-        boolean auditExists = auditLogRepository.findAll()
-                .stream()
-                .anyMatch(log ->
-                        "DOCUMENT_ACCESSED".equals(log.getAction())
-                                && "DOCUMENT".equals(log.getResourceType())
-                                && document.getId().equals(log.getResourceId())
-                                && owner.getId().equals(log.getUser().getId())
-                );
+        boolean auditExists =
+                auditLogRepository
+                        .findAll()
+                        .stream()
+                        .anyMatch(log ->
+                                "DOCUMENT_ACCESSED"
+                                        .equals(log.getAction())
+                                        && "DOCUMENT"
+                                        .equals(
+                                                log.getResourceType()
+                                        )
+                                        && document.getId()
+                                        .equals(
+                                                log.getResourceId()
+                                        )
+                                        && owner.getId()
+                                        .equals(
+                                                log.getUser().getId()
+                                        )
+                        );
 
         assertTrue(
                 auditExists,
@@ -304,40 +379,52 @@ class DocumentControllerTest {
     }
 
     @Test
-    void unauthorizedUserDoesNotCreateDocumentAccessedAuditLog() {
+    void unauthorizedUserDoesNotCreateDocumentAccessedAuditLog()
+            throws Exception {
 
-        String ownerUsername = "http-audit-access-owner";
-        String otherUsername = "http-audit-access-other";
+        String ownerUsername =
+                "http-audit-access-owner";
 
-        User owner = userRepository.findByUsername(ownerUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                ownerUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        String otherUsername =
+                "http-audit-access-other";
 
-        User otherUser = userRepository.findByUsername(otherUsername)
-                .orElseGet(() ->
-                        userService.createUser(
-                                otherUsername,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User owner =
+                userRepository
+                        .findByUsername(ownerUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        ownerUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        Document document = getTestDocument();
+        User otherUser =
+                userRepository
+                        .findByUsername(otherUsername)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        otherUsername,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        document.setUploadedBy(owner);
-        documentRepository.saveAndFlush(document);
+        Document document =
+                getTestDocument(owner);
 
-        String token = jwtService.generateToken(
-                otherUsername,
-                otherUser.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        otherUsername,
+                        otherUser.getRole()
+                );
 
         client()
                 .get()
-                .uri("/api/documents/{id}", document.getId())
+                .uri(
+                        "/api/documents/{id}",
+                        document.getId()
+                )
                 .header(
                         HttpHeaders.AUTHORIZATION,
                         "Bearer " + token
@@ -347,13 +434,24 @@ class DocumentControllerTest {
                 .isForbidden();
 
         boolean unauthorizedAuditExists =
-                auditLogRepository.findAll()
+                auditLogRepository
+                        .findAll()
                         .stream()
                         .anyMatch(log ->
-                                "DOCUMENT_ACCESSED".equals(log.getAction())
-                                        && "DOCUMENT".equals(log.getResourceType())
-                                        && document.getId().equals(log.getResourceId())
-                                        && otherUser.getId().equals(log.getUser().getId())
+                                "DOCUMENT_ACCESSED"
+                                        .equals(log.getAction())
+                                        && "DOCUMENT"
+                                        .equals(
+                                                log.getResourceType()
+                                        )
+                                        && document.getId()
+                                        .equals(
+                                                log.getResourceId()
+                                        )
+                                        && otherUser.getId()
+                                        .equals(
+                                                log.getUser().getId()
+                                        )
                         );
 
         assertTrue(
@@ -370,28 +468,31 @@ class DocumentControllerTest {
                 .uri("/api/documents")
                 .exchange()
                 .expectStatus()
-                .isForbidden();
+                .isUnauthorized();
     }
-
-
 
     @Test
     void authenticatedUserCannotUploadNonPdfFile() {
 
-        String username = "http-invalid-file-user";
+        String username =
+                "http-invalid-file-user";
 
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User user =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        String token = jwtService.generateToken(
-                username,
-                user.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        user.getRole()
+                );
 
         ByteArrayResource resource =
                 new ByteArrayResource(
@@ -418,7 +519,9 @@ class DocumentControllerTest {
                         HttpHeaders.AUTHORIZATION,
                         "Bearer " + token
                 )
-                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .contentType(
+                        MediaType.MULTIPART_FORM_DATA
+                )
                 .body(body)
                 .exchange()
                 .expectStatus()
@@ -428,23 +531,30 @@ class DocumentControllerTest {
     @Test
     void authenticatedUserCannotUploadEmptyFile() {
 
-        String username = "http-empty-file-user";
+        String username =
+                "http-empty-file-user";
 
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User user =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        String token = jwtService.generateToken(
-                username,
-                user.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        user.getRole()
+                );
 
         ByteArrayResource resource =
-                new ByteArrayResource(new byte[0]) {
+                new ByteArrayResource(
+                        new byte[0]
+                ) {
                     @Override
                     public String getFilename() {
                         return "empty.pdf";
@@ -466,7 +576,9 @@ class DocumentControllerTest {
                         HttpHeaders.AUTHORIZATION,
                         "Bearer " + token
                 )
-                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .contentType(
+                        MediaType.MULTIPART_FORM_DATA
+                )
                 .body(body)
                 .exchange()
                 .expectStatus()
@@ -474,29 +586,39 @@ class DocumentControllerTest {
     }
 
     @Test
-    void authenticatedUserCanUploadValidPdf() throws Exception {
+    void authenticatedUserCanUploadValidPdf()
+            throws Exception {
 
-        String username = "http-valid-upload-user";
+        String username =
+                "http-valid-upload-user";
 
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User user =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        String token = jwtService.generateToken(
-                username,
-                user.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        user.getRole()
+                );
 
         ClassPathResource pdfResource =
-                new ClassPathResource("test-policy.pdf");
+                new ClassPathResource(
+                        "test-policy.pdf"
+                );
 
         ByteArrayResource resource =
                 new ByteArrayResource(
-                        pdfResource.getInputStream().readAllBytes()
+                        pdfResource
+                                .getInputStream()
+                                .readAllBytes()
                 ) {
                     @Override
                     public String getFilename() {
@@ -519,42 +641,64 @@ class DocumentControllerTest {
                         HttpHeaders.AUTHORIZATION,
                         "Bearer " + token
                 )
-                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .contentType(
+                        MediaType.MULTIPART_FORM_DATA
+                )
                 .body(body)
                 .exchange()
                 .expectStatus()
                 .isCreated()
                 .expectBody(String.class)
                 .value(response -> {
-                    assertTrue(response.contains("test-policy.pdf"));
-                    assertTrue(response.contains("UPLOADED"));
+
+                    assertTrue(
+                            response.contains(
+                                    "test-policy.pdf"
+                            )
+                    );
+
+                    assertTrue(
+                            response.contains(
+                                    "READY"
+                            )
+                    );
                 });
     }
 
     @Test
-    void successfulUploadCreatesDocumentUploadedAuditLog() throws Exception {
+    void successfulUploadCreatesDocumentUploadedAuditLog()
+            throws Exception {
 
-        String username = "http-upload-audit-user";
+        String username =
+                "http-upload-audit-user";
 
-        User user = userRepository.findByUsername(username)
-                .orElseGet(() ->
-                        userService.createUser(
-                                username,
-                                "test-password-123",
-                                "USER"
-                        ));
+        User user =
+                userRepository
+                        .findByUsername(username)
+                        .orElseGet(() ->
+                                userService.createUser(
+                                        username,
+                                        "test-password-123",
+                                        "USER"
+                                )
+                        );
 
-        String token = jwtService.generateToken(
-                username,
-                user.getRole()
-        );
+        String token =
+                jwtService.generateToken(
+                        username,
+                        user.getRole()
+                );
 
         ClassPathResource pdfResource =
-                new ClassPathResource("test-policy.pdf");
+                new ClassPathResource(
+                        "test-policy.pdf"
+                );
 
         ByteArrayResource resource =
                 new ByteArrayResource(
-                        pdfResource.getInputStream().readAllBytes()
+                        pdfResource
+                                .getInputStream()
+                                .readAllBytes()
                 ) {
                     @Override
                     public String getFilename() {
@@ -570,37 +714,88 @@ class DocumentControllerTest {
                 new HttpEntity<>(resource)
         );
 
-        String response = client()
-                .post()
-                .uri("/api/documents")
-                .header(
-                        HttpHeaders.AUTHORIZATION,
-                        "Bearer " + token
+        String response =
+                client()
+                        .post()
+                        .uri("/api/documents")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + token
+                        )
+                        .contentType(
+                                MediaType.MULTIPART_FORM_DATA
+                        )
+                        .body(body)
+                        .exchange()
+                        .expectStatus()
+                        .isCreated()
+                        .expectBody(String.class)
+                        .returnResult()
+                        .getResponseBody();
+
+        assertTrue(
+                response != null
+        );
+
+        assertTrue(
+                response.contains(
+                        "audit-test-policy.pdf"
                 )
-                .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(body)
-                .exchange()
-                .expectStatus()
-                .isCreated()
-                .expectBody(String.class)
-                .returnResult()
-                .getResponseBody();
+        );
 
-        assertTrue(response != null);
-        assertTrue(response.contains("audit-test-policy.pdf"));
-
-        boolean auditExists = auditLogRepository.findAll()
-                .stream()
-                .anyMatch(log ->
-                        "DOCUMENT_UPLOADED".equals(log.getAction())
-                                && "DOCUMENT".equals(log.getResourceType())
-                                && user.getId().equals(log.getUser().getId())
-                                && log.getResourceId() != null
-                );
+        boolean auditExists =
+                auditLogRepository
+                        .findAll()
+                        .stream()
+                        .anyMatch(log ->
+                                "DOCUMENT_UPLOADED"
+                                        .equals(log.getAction())
+                                        && "DOCUMENT"
+                                        .equals(
+                                                log.getResourceType()
+                                        )
+                                        && user.getId()
+                                        .equals(
+                                                log.getUser().getId()
+                                        )
+                                        && log.getResourceId() != null
+                        );
 
         assertTrue(
                 auditExists,
                 "Successful document upload must create DOCUMENT_UPLOADED audit log"
         );
+    }
+
+    /**
+     * Creates a fresh test document through the real
+     * document ingestion pipeline.
+     *
+     * This avoids relying on a pre-existing document in
+     * the test database.
+     */
+    private Document getTestDocument(
+            User owner)
+            throws Exception {
+
+        Document document =
+                testDocumentFactory
+                        .createInsuranceDocument(owner);
+
+        assertTrue(
+                document.getUploadedBy() != null,
+                "Expected test document to have an owner"
+        );
+
+        assertTrue(
+                owner.getId().equals(
+                        document
+                                .getUploadedBy()
+                                .getId()
+                ),
+                "Test document must belong to the requested owner"
+        );
+
+        return document;
     }
 }

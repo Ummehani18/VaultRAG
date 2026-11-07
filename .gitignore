@@ -1,5 +1,73 @@
-node_modules/
-target/
+
+# ==========================================
+# Java / Maven
+# ==========================================
+**/target/
+**/build/
+*.class
+*.jar
+*.war
+
+# ==========================================
+# Node.js / Next.js
+# ==========================================
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+**/.turbo/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# ==========================================
+# Environment files and secrets
+# ==========================================
 .env
 .env.*
+!.env.example
+!.env.*.example
+
+# Local Spring configuration
+**/src/main/resources/application-local.properties
+**/src/main/resources/application.properties
+
+# Private keys and certificates
+*.pem
+*.key
+*.p12
+*.jks
+
+# ==========================================
+# Logs
+# ==========================================
 *.log
+logs/
+
+# ==========================================
+# Local document storage / runtime data
+# ==========================================
+storage/documents/
+storage/uploads/
+uploads/
+
+# Preserve empty storage directories if needed
+!storage/.gitkeep
+
+# ==========================================
+# IDE and operating system
+# ==========================================
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# Test and temporary files
+# ==========================================
+*.tmp
+*.temp
+*.swp
+*.bak

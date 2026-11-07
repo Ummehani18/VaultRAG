@@ -15,6 +15,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
@@ -79,9 +80,9 @@ class AuditLogControllerTest {
     }
 
     @Test
-    void regularUserCannotAccessAuditLogs() {
+    void regularUserCanAccessOwnAuditLogs() {
 
-        String username = "audit-regular-user";
+        String username = "audit-personal-user";
 
         User user = userRepository.findByUsername(username)
                 .orElseGet(() ->
@@ -91,6 +92,13 @@ class AuditLogControllerTest {
                                 "USER"
                         )
                 );
+
+        auditLogService.log(
+                user,
+                "PERSONAL_TEST_ACTION",
+                "TEST",
+                UUID.randomUUID()
+        );
 
         String token = jwtService.generateToken(
                 username,
@@ -106,7 +114,92 @@ class AuditLogControllerTest {
                 )
                 .exchange()
                 .expectStatus()
-                .isForbidden();
+                .isOk()
+                .expectBody()
+                .jsonPath("$.content")
+                .isArray()
+                .jsonPath("$.content[0].action")
+                .isEqualTo("PERSONAL_TEST_ACTION")
+                .jsonPath("$.content[0].username")
+                .isEqualTo(username);
+    }
+
+    @Test
+    void regularUserCanOnlySeeOwnAuditLogs() {
+
+        String user1Username = "audit-isolation-user-1";
+        String user2Username = "audit-isolation-user-2";
+
+        User user1 = userRepository.findByUsername(user1Username)
+                .orElseGet(() ->
+                        userService.createUser(
+                                user1Username,
+                                "test-password-123",
+                                "USER"
+                        )
+                );
+
+        User user2 = userRepository.findByUsername(user2Username)
+                .orElseGet(() ->
+                        userService.createUser(
+                                user2Username,
+                                "test-password-123",
+                                "USER"
+                        )
+                );
+
+        auditLogService.log(
+                user1,
+                "USER_ONE_ACTION",
+                "TEST",
+                UUID.randomUUID()
+        );
+
+        auditLogService.log(
+                user2,
+                "USER_TWO_ACTION",
+                "TEST",
+                UUID.randomUUID()
+        );
+
+        String token = jwtService.generateToken(
+                user1Username,
+                user1.getRole()
+        );
+
+        client()
+                .get()
+                .uri("/api/audit-logs")
+                .header(
+                        HttpHeaders.AUTHORIZATION,
+                        "Bearer " + token
+                )
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.content")
+                .value(content -> {
+
+                    @SuppressWarnings("unchecked")
+                    var logs = (java.util.List<java.util.Map<String, Object>>) content;
+
+                    assertTrue(
+                            logs.stream().allMatch(
+                                    log -> user1Username.equals(
+                                            log.get("username")
+                                    )
+                            )
+                    );
+
+                    assertTrue(
+                            logs.stream().noneMatch(
+                                    log -> user2Username.equals(
+                                            log.get("username")
+                                    )
+                            )
+                    );
+                });
     }
 
     @Test
@@ -117,7 +210,7 @@ class AuditLogControllerTest {
                 .uri("/api/audit-logs")
                 .exchange()
                 .expectStatus()
-                .isForbidden();
+                .isUnauthorized();
     }
 
     @Test
@@ -214,7 +307,9 @@ class AuditLogControllerTest {
                 .isBadRequest()
                 .expectBody()
                 .jsonPath("$.error")
-                .isEqualTo("Page must be greater than or equal to 0");
+                .isEqualTo(
+                        "Page must be greater than or equal to 0"
+                );
     }
 
     @Test
@@ -248,6 +343,8 @@ class AuditLogControllerTest {
                 .isBadRequest()
                 .expectBody()
                 .jsonPath("$.error")
-                .isEqualTo("Size must be between 1 and 100");
+                .isEqualTo(
+                        "Size must be between 1 and 100"
+                );
     }
 }

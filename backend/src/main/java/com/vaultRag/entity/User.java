@@ -1,22 +1,31 @@
 package com.vaultRag.backend.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
 
-
-
 @Entity
 @Table(name = "users")
-public class User extends BaseEntity{
+public class User extends BaseEntity {
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(
+            nullable = false,
+            unique = true,
+            length = 100
+    )
     private String username;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    @Column(
+            name = "password_hash",
+            nullable = false,
+            length = 255
+    )
     private String passwordHash;
 
-    @Column(nullable = false, length = 50)
+    @Column(
+            nullable = false,
+            length = 50
+    )
     private String role;
 
     public User() {
