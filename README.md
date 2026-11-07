@@ -1,6 +1,6 @@
 # VaultRAG
 
-> **Privacy-first local RAG platform for secure, citation-backed document retrieval.**
+> **Privacy-first local RAG platform for secure, citation-backed retrieval of sensitive organizational documents.**
 
 [![Status](https://img.shields.io/badge/status-in%20development-yellow)](#license)
 [![License](https://img.shields.io/badge/license-TBD-lightgrey)](#license)
@@ -12,7 +12,7 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](#local-setup)
 [![Ollama](https://img.shields.io/badge/AI%20Runtime-Ollama-000000)](#tech-stack)
 [![Offline Goal](https://img.shields.io/badge/deployment-offline%20%2F%20air--gapped%20goal-informational)](#privacy--offline-direction)
-**Privacy-first local RAG platform for secure, citation-backed retrieval of sensitive organizational documents.**
+
 
 VaultRAG is a locally hosted Retrieval-Augmented Generation (RAG) platform designed to help organizations securely search and query sensitive documents using local AI models.
 
